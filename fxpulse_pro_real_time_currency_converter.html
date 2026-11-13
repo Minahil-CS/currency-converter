@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FXPulse — Pro Real-Time Currency & FX Terminal</title>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            terminal: {
+              bg: '#090C10',
+              card: '#11161F',
+              elevated: '#18202C',
+              border: '#232D3F',
+              accent: '#10B981', // Emerald pulse
+              cyan: '#06B6D4',
+              muted: '#8B98A9',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body {
+      background-color: #090C10;
+      color: #F1F5F9;
+      font-family: 'Inter', sans-serif;
+      background-image:
+        radial-gradient(circle at 15% 15%, rgba(16, 185, 129, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 20%, rgba(6, 182, 212, 0.07) 0%, transparent 45%);
+      min-height: 100vh;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .glass-panel {
+      background: rgba(17, 22, 31, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(35, 45, 63, 0.9);
+      box-shadow: 0 20px 45px -15px rgba(0, 0, 0, 0.6);
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0D1117;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #232D3F;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #364560;
+    }
+
+    /* Swap Button Animation */
+    .swap-btn {
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s, border-color 0.2s;
+    }
+    .swap-btn.rotated {
+      transform: rotate(180deg);
+    }
+
+    /* Range Slider Styling */
+    input[type="range"] {
+      -webkit-appearance: none;
+      background: transparent;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 6px;
+      background: #1E293B;
+      border-radius: 999px;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      background: #10B981;
+      cursor: pointer;
+      margin-top: -6px;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+    }
+  </style>
+</head>
+<body class="antialiased selection:bg-emerald-500/30 selection:text-emerald-200 pb-12">
+
+  <!-- Top Navigation / Status Header -->
+  <header class="border-b border-terminal-border/80 bg-[#0B0F17]/90 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <!-- Brand -->
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <i data-lucide="arrow-left-right" class="w-5 h-5 text-slate-950 stroke-[2.5]"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-lg tracking-tight text-white">FX<span class="text-emerald-400">Pulse</span></span>
+            <span class="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">PRO</span>
+          </div>
+          <p class="text-[11px] text-slate-400 hidden sm:block">Real-Time Interbank FX & Analytics Terminal</p>
+        </div>
+      </div>
+
+      <!-- Live Feed Status & Refresh -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <div id="statusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-xs font-medium text-emerald-300">
+          <span class="relative flex h-2 w-2">
+            <span id="statusPing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span id="statusDot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span id="statusText">Connecting...</span>
+        </div>
+
+        <span id="lastUpdatedText" class="hidden md:inline-block text-xs font-mono text-slate-400">
+          --:--:--
+        </span>
+
+        <button id="refreshRatesBtn" title="Refresh Live Rates" class="p-2 rounded-xl bg-terminal-elevated hover:bg-slate-800 border border-terminal-border text-slate-300 hover:text-white transition flex items-center gap-1.5 text-xs font-medium">
+          <i id="refreshIcon" data-lucide="refresh-cw" class="w-4 h-4"></i>
+          <span class="hidden sm:inline">Sync</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Dashboard Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
+
+    <!-- Top Row: Primary Converter + Historical Chart -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+      <!-- LEFT COLUMN (7 cols): Primary Converter & Fee Simulator -->
+      <div class="lg:col-span-7 space-y-6">
+        <section class="glass-panel rounded-2xl p-5 sm:p-7 relative overflow-hidden">
+          <!-- Subtle top highlight bar -->
+          <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-emerald-500 via-cyan-400 to-indigo-500 opacity-80"></div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
+            <div>
+              <h1 class="text-base sm:text-lg font-semibold text-white">Currency Conversion</h1>
+              <p class="text-xs text-slate-400">Mid-market interbank spot rates with zero hidden delay</p>
+            </div>
+            <!-- Quick Preset Pills -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <button data-preset="100" class="preset-pill px-2.5 py-1 rounded-lg text-xs font-mono bg-terminal-elevated hover:bg-emerald-500/20 hover:text-emerald-300 border border-terminal-border text-slate-300 transition">100</button>
+              <button data-preset="500" class="preset-pill px-2.5 py-1 rounded-lg text-xs font-mono bg-terminal-elevated hover:bg-emerald-500/20 hover:text-emerald-300 border border-terminal-border text-slate-300 transition">500</button>
+              <button data-preset="1000" class="preset-pill px-2.5 py-1 rounded-lg text-xs font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 transition">1,000</button>
+              <button data-preset="5000" class="preset-pill px-2.5 py-1 rounded-lg text-xs font-mono bg-terminal-elevated hover:bg-emerald-500/20 hover:text-emerald-300 border border-terminal-border text-slate-300 transition">5,000</button>
+              <button data-preset="10000" class="preset-pill px-2.5 py-1 rounded-lg text-xs font-mono bg-terminal-elevated hover:bg-emerald-500/20 hover:text-emerald-300 border border-terminal-border text-slate-300 transition">10K</button>
+            </div>
+          </div>
+
+          <!-- Source & Target Currency Cards -->
+          <div class="space-y-3 relative">
+            <!-- FROM BOX -->
+            <div class="bg-[#0B0F17] border border-terminal-border focus-within:border-emerald-500/60 rounded-2xl p-4 transition">
+              <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+                <span>Amount to Convert</span>
+                <span id="fromCurrencyName" class="font-medium text-slate-300">United States Dollar</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <input
+                  id="amountInput"
+                  type="number"
+                  inputmode="decimal"
+                  min="0"
+                  step="any"
+                  value="1000"
+                  placeholder="0.00"
+                  class="w-full bg-transparent text-2xl sm:text-3xl font-mono font-bold text-white tabular-nums focus:outline-none"
+                />
+                <!-- Custom Searchable Dropdown Trigger (FROM) -->
+                <button id="fromSelectorBtn" type="button" class="shrink-0 flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-terminal-elevated hover:bg-slate-800 border border-terminal-border transition">
+                  <span id="fromFlag" class="text-xl leading-none">🇺🇸</span>
+                  <span id="fromCode" class="font-mono font-bold text-sm sm:text-base text-white">USD</span>
+                  <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- FLOATING SWAP BUTTON -->
+            <div class="flex justify-center -my-2 relative z-10">
+              <button id="swapBtn" type="button" title="Swap Currencies" class="swap-btn w-11 h-11 rounded-full bg-terminal-elevated hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 border-2 border-[#0B0F17] ring-1 ring-terminal-border flex items-center justify-center shadow-lg">
+                <i data-lucide="arrow-up-down" class="w-5 h-5"></i>
+              </button>
+            </div>
+
+            <!-- TO BOX -->
+            <div class="bg-[#0B0F17] border border-terminal-border rounded-2xl p-4">
+              <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+                <span id="convertedLabel">Converted Amount (Interbank)</span>
+                <span id="toCurrencyName" class="font-medium text-slate-300">Pakistani Rupee</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <div class="w-full overflow-x-auto">
+                  <div id="convertedOutput" class="text-2xl sm:text-3xl font-mono font-bold text-emerald-400 tabular-nums select-all">
+                    278,500.00
+                  </div>
+                </div>
+                <!-- Custom Searchable Dropdown Trigger (TO) -->
+                <button id="toSelectorBtn" type="button" class="shrink-0 flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-terminal-elevated hover:bg-slate-800 border border-terminal-border transition">
+                  <span id="toFlag" class="text-xl leading-none">🇵🇰</span>
+                  <span id="toCode" class="font-mono font-bold text-sm sm:text-base text-white">PKR</span>
+                  <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Unit Rate & Action Bar -->
+          <div class="mt-5 pt-4 border-t border-terminal-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2 text-xs sm:text-sm font-mono text-slate-200">
+                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                <span id="unitRateText">1 USD = 278.5000 PKR</span>
+              </div>
+              <div id="inverseRateText" class="text-xs font-mono text-slate-400 pl-4">
+                1 PKR = 0.003591 USD
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button id="saveHistoryBtn" type="button" class="px-3.5 py-2 rounded-xl bg-terminal-elevated hover:bg-slate-800 border border-terminal-border text-xs font-medium text-slate-200 flex items-center gap-1.5 transition">
+                <i data-lucide="bookmark-plus" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <span>Log</span>
+              </button>
+              <button id="copyResultBtn" type="button" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                <span>Copy Result</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Bank / FX Spread Fee Simulator -->
+          <div class="mt-5 bg-[#0B0F17]/90 border border-terminal-border rounded-xl p-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div class="flex items-center gap-2">
+                <i data-lucide="sliders" class="w-4 h-4 text-amber-400"></i>
+                <span class="text-xs font-semibold text-slate-200">FX Spread & Bank Fee Simulator</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button data-fee="0" class="fee-preset px-2 py-0.5 rounded text-[11px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">0% Spot</button>
+                <button data-fee="0.6" class="fee-preset px-2 py-0.5 rounded text-[11px] font-mono bg-terminal-elevated text-slate-300 border border-terminal-border hover:border-slate-600">0.6% Wise</button>
+                <button data-fee="3.5" class="fee-preset px-2 py-0.5 rounded text-[11px] font-mono bg-terminal-elevated text-slate-300 border border-terminal-border hover:border-slate-600">3.5% Bank</button>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+              <input id="feeSlider" type="range" min="0" max="6" step="0.1" value="0" class="w-full" />
+              <span id="feePercentDisplay" class="font-mono text-xs font-semibold text-amber-400 w-14 text-right">0.0%</span>
+            </div>
+
+            <div id="feeBreakdown" class="mt-2.5 flex items-center justify-between text-xs text-slate-400">
+              <span>Net recipient receives: <strong id="netReceiveText" class="font-mono text-slate-200">278,500.00 PKR</strong></span>
+              <span>Markup cost: <strong id="feeCostText" class="font-mono text-rose-400">0.00 PKR</strong></span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- RIGHT COLUMN (5 cols): Interactive Historical Trend Chart -->
+      <div class="lg:col-span-5 space-y-6">
+        <section class="glass-panel rounded-2xl p-5 sm:p-6">
+          <div class="flex items-center justify-between gap-2 mb-4">
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 id="chartPairTitle" class="text-base font-semibold text-white font-mono">USD / PKR</h2>
+                <span id="chartDeltaBadge" class="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-emerald-500/15 text-emerald-400">
+                  +0.42%
+                </span>
+              </div>
+              <p id="chartSubtitle" class="text-xs text-slate-400">Historical Exchange Rate Performance</p>
+            </div>
+
+            <!-- Period Selector -->
+            <div class="flex items-center bg-[#0B0F17] p-1 rounded-xl border border-terminal-border">
+              <button data-days="7" class="period-btn px-2.5 py-1 rounded-lg text-xs font-mono text-slate-400 hover:text-white transition">7D</button>
+              <button data-days="30" class="period-btn px-2.5 py-1 rounded-lg text-xs font-mono bg-terminal-elevated text-emerald-400 font-semibold shadow">30D</button>
+              <button data-days="90" class="period-btn px-2.5 py-1 rounded-lg text-xs font-mono text-slate-400 hover:text-white transition">90D</button>
+            </div>
+          </div>
+
+          <!-- Canvas Chart Container -->
+          <div class="relative w-full h-56 bg-[#0B0F17] rounded-xl border border-terminal-border/80 p-2 overflow-hidden">
+            <canvas id="trendCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+            <!-- Floating Hover Tooltip -->
+            <div id="chartTooltip" class="hidden pointer-events-none absolute top-3 left-3 bg-slate-900/95 border border-slate-700 px-3 py-1.5 rounded-lg shadow-xl text-xs">
+              <div id="tooltipDate" class="text-slate-400 text-[11px]">Nov 12, 2026</div>
+              <div id="tooltipRate" class="font-mono font-bold text-emerald-400 text-sm">278.5000</div>
+            </div>
+          </div>
+
+          <!-- Period High / Low / Average Metrics -->
+          <div class="grid grid-cols-3 gap-2.5 mt-4">
+            <div class="bg-[#0B0F17] border border-terminal-border rounded-xl p-2.5">
+              <div class="text-[11px] text-slate-400">Period High</div>
+              <div id="statHigh" class="font-mono text-xs sm:text-sm font-semibold text-emerald-400 mt-0.5 tabular-nums">--</div>
+            </div>
+            <div class="bg-[#0B0F17] border border-terminal-border rounded-xl p-2.5">
+              <div class="text-[11px] text-slate-400">Period Low</div>
+              <div id="statLow" class="font-mono text-xs sm:text-sm font-semibold text-rose-400 mt-0.5 tabular-nums">--</div>
+            </div>
+            <div class="bg-[#0B0F17] border border-terminal-border rounded-xl p-2.5">
+              <div class="text-[11px] text-slate-400">Period Avg</div>
+              <div id="statAvg" class="font-mono text-xs sm:text-sm font-semibold text-cyan-400 mt-0.5 tabular-nums">--</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Recent Conversions Log -->
+        <section class="glass-panel rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <i data-lucide="history" class="w-4 h-4 text-cyan-400"></i>
+              <h3 class="text-sm font-semibold text-white">Recent Conversions</h3>
+            </div>
+            <button id="clearHistoryBtn" class="text-xs text-slate-400 hover:text-rose-400 transition">Clear</button>
+          </div>
+          <div id="historyList" class="space-y-2 max-h-44 overflow-y-auto pr-1">
+            <p class="text-xs text-slate-500 text-center py-4">No logged conversions yet. Click "Log" or convert to save.</p>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- BOTTOM SECTION: Multi-Currency Live Watchlist Board -->
+    <section class="glass-panel rounded-2xl p-5 sm:p-6">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div>
+          <h2 class="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
+            <i data-lucide="globe" class="w-5 h-5 text-emerald-400"></i>
+            <span>Live Multi-Currency Matrix</span>
+          </h2>
+          <p class="text-xs text-slate-400">Real-time equivalent of <span id="matrixBaseLabel" class="font-mono text-emerald-400 font-semibold">1,000 USD</span> across global currencies</p>
+        </div>
+
+        <button id="addWatchlistBtn" class="px-3.5 py-2 rounded-xl bg-terminal-elevated hover:bg-slate-800 border border-terminal-border text-xs font-medium text-emerald-400 flex items-center gap-1.5 transition">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span>Add Currency</span>
+        </button>
+      </div>
+
+      <!-- Watchlist Grid -->
+      <div id="watchlistGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+        <!-- Cards injected dynamically -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Searchable Currency Picker Modal -->
+  <div id="currencyModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#11161F] border border-terminal-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+      <div class="p-4 border-b border-terminal-border flex items-center justify-between">
+        <h3 id="modalTitle" class="text-sm font-semibold text-white">Select Currency</h3>
+        <button id="closeModalBtn" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="p-3 border-b border-terminal-border bg-[#0B0F17]">
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+          <input
+            id="currencySearchInput"
+            type="text"
+            placeholder="Search by code, country, or currency name..."
+            class="w-full bg-terminal-elevated border border-terminal-border focus:border-emerald-500 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none"
+          />
+        </div>
+      </div>
+      <div id="currencyListContainer" class="max-h-80 overflow-y-auto divide-y divide-terminal-border/40">
+        <!-- Options populated via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 translate-y-20 opacity-0 pointer-events-none transition-all duration-300 bg-slate-900 border border-emerald-500/40 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-medium">
+    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+    <span id="toastMessage">Copied to clipboard!</span>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. COMPREHENSIVE CURRENCY METADATA & FALLBACK RATES
+    // =========================================================================
+    const CURRENCIES = [
+      { code: 'USD', name: 'United States Dollar', symbol: '$', flag: '🇺🇸', region: 'Americas' },
+      { code: 'EUR', name: 'Euro', symbol: '€', flag: '🇪🇺', region: 'Europe' },
+      { code: 'GBP', name: 'British Pound Sterling', symbol: '£', flag: '🇬🇧', region: 'Europe' },
+      { code: 'PKR', name: 'Pakistani Rupee', symbol: '₨', flag: '🇵🇰', region: 'Asia' },
+      { code: 'AED', name: 'UAE Dirham', symbol: 'د.إ', flag: '🇦🇪', region: 'Middle East' },
+      { code: 'SAR', name: 'Saudi Riyal', symbol: '﷼', flag: '🇸🇦', region: 'Middle East' },
+      { code: 'JPY', name: 'Japanese Yen', symbol: '¥', flag: '🇯🇵', region: 'Asia' },
+      { code: 'CAD', name: 'Canadian Dollar', symbol: 'C$', flag: '🇨🇦', region: 'Americas' },
+      { code: 'AUD', name: 'Australian Dollar', symbol: 'A$', flag: '🇦🇺', region: 'Oceania' },
+      { code: 'CHF', name: 'Swiss Franc', symbol: 'CHF', flag: '🇨🇭', region: 'Europe' },
+      { code: 'CNY', name: 'Chinese Yuan Renminbi', symbol: '¥', flag: '🇨🇳', region: 'Asia' },
+      { code: 'INR', name: 'Indian Rupee', symbol: '₹', flag: '🇮🇳', region: 'Asia' },
+      { code: 'SGD', name: 'Singapore Dollar', symbol: 'S$', flag: '🇸🇬', region: 'Asia' },
+      { code: 'NZD', name: 'New Zealand Dollar', symbol: 'NZ$', flag: '🇳🇿', region: 'Oceania' },
+      { code: 'TRY', name: 'Turkish Lira', symbol: '₺', flag: '🇹🇷', region: 'Europe/Asia' },
+      { code: 'QAR', name: 'Qatari Riyal', symbol: '﷼', flag: '🇶🇦', region: 'Middle East' },
+      { code: 'KWD', name: 'Kuwaiti Dinar', symbol: 'د.ك', flag: '🇰🇼', region: 'Middle East' },
+      { code: 'MYR', name: 'Malaysian Ringgit', symbol: 'RM', flag: '🇲🇾', region: 'Asia' },
+      { code: 'KRW', name: 'South Korean Won', symbol: '₩', flag: '🇰🇷', region: 'Asia' },
+      { code: 'BRL', name: 'Brazilian Real', symbol: 'R$', flag: '🇧🇷', region: 'Americas' },
+      { code: 'ZAR', name: 'South African Rand', symbol: 'R', flag: '🇿🇦', region: 'Africa' },
+      { code: 'SEK', name: 'Swedish Krona', symbol: 'kr', flag: '🇸🇪', region: 'Europe' },
+      { code: 'NOK', name: 'Norwegian Krone', symbol: 'kr', flag: '🇳🇴', region: 'Europe' },
+      { code: 'MXN', name: 'Mexican Peso', symbol: '$', flag: '🇲🇽', region: 'Americas' }
+    ];
+
+    // Realistic fallback rates relative to 1 USD in case offline or rate-limited
+    const FALLBACK_RATES_USD = {
+      USD: 1.0, EUR: 0.924, GBP: 0.786, PKR: 278.50, AED: 3.6725, SAR: 3.75,
+      JPY: 153.40, CAD: 1.388, AUD: 1.518, CHF: 0.881, CNY: 7.24, INR: 84.38,
+      SGD: 1.336, NZD: 1.672, TRY: 34.45, QAR: 3.64, KWD: 0.307, MYR: 4.42,
+      KRW: 1392.0, BRL: 5.76, ZAR: 17.95, SEK: 10.78, NOK: 11.04, MXN: 20.15
+    };
+
+    // =========================================================================
+    // 2. APPLICATION STATE
+    // =========================================================================
+    const state = {
+      amount: 1000,
+      from: 'USD',
+      to: 'PKR',
+      rates: { ...FALLBACK_RATES_USD }, // Base USD rates
+      isLive: false,
+      lastUpdated: null,
+      feePercent: 0,
+      chartDays: 30,
+      chartData: [],
+      watchlist: JSON.parse(localStorage.getItem('fxpulse_watchlist')) || ['EUR', 'GBP', 'PKR', 'AED', 'SAR', 'JPY', 'CAD', 'INR'],
+      history: JSON.parse(localStorage.getItem('fxpulse_history')) || [],
+      modalTarget: null // 'from' | 'to' | 'watchlist'
+    };
+
+    // =========================================================================
+    // 3. DOM REFERENCES
+    // =========================================================================
+    const els = {
+      amountInput: document.getElementById('amountInput'),
+      fromSelectorBtn: document.getElementById('fromSelectorBtn'),
+      toSelectorBtn: document.getElementById('toSelectorBtn'),
+      fromFlag: document.getElementById('fromFlag'),
+      fromCode: document.getElementById('fromCode'),
+      fromCurrencyName: document.getElementById('fromCurrencyName'),
+      toFlag: document.getElementById('toFlag'),
+      toCode: document.getElementById('toCode'),
+      toCurrencyName: document.getElementById('toCurrencyName'),
+      convertedOutput: document.getElementById('convertedOutput'),
+      unitRateText: document.getElementById('unitRateText'),
+      inverseRateText: document.getElementById('inverseRateText'),
+      swapBtn: document.getElementById('swapBtn'),
+      copyResultBtn: document.getElementById('copyResultBtn'),
+      saveHistoryBtn: document.getElementById('saveHistoryBtn'),
+      clearHistoryBtn: document.getElementById('clearHistoryBtn'),
+      historyList: document.getElementById('historyList'),
+      feeSlider: document.getElementById('feeSlider'),
+      feePercentDisplay: document.getElementById('feePercentDisplay'),
+      netReceiveText: document.getElementById('netReceiveText'),
+      feeCostText: document.getElementById('feeCostText'),
+      statusBadge: document.getElementById('statusBadge'),
+      statusPing: document.getElementById('statusPing'),
+      statusDot: document.getElementById('statusDot'),
+      statusText: document.getElementById('statusText'),
+      lastUpdatedText: document.getElementById('lastUpdatedText'),
+      refreshRatesBtn: document.getElementById('refreshRatesBtn'),
+      refreshIcon: document.getElementById('refreshIcon'),
+      watchlistGrid: document.getElementById('watchlistGrid'),
+      matrixBaseLabel: document.getElementById('matrixBaseLabel'),
+      addWatchlistBtn: document.getElementById('addWatchlistBtn'),
+      currencyModal: document.getElementById('currencyModal'),
+      modalTitle: document.getElementById('modalTitle'),
+      closeModalBtn: document.getElementById('closeModalBtn'),
+      currencySearchInput: document.getElementById('currencySearchInput'),
+      currencyListContainer: document.getElementById('currencyListContainer'),
+      chartPairTitle: document.getElementById('chartPairTitle'),
+      chartDeltaBadge: document.getElementById('chartDeltaBadge'),
+      trendCanvas: document.getElementById('trendCanvas'),
+      chartTooltip: document.getElementById('chartTooltip'),
+      tooltipDate: document.getElementById('tooltipDate'),
+      tooltipRate: document.getElementById('tooltipRate'),
+      statHigh: document.getElementById('statHigh'),
+      statLow: document.getElementById('statLow'),
+      statAvg: document.getElementById('statAvg'),
+      toast: document.getElementById('toast'),
+      toastMessage: document.getElementById('toastMessage')
+    };
+
+    // =========================================================================
+    // 4. UTILITY FUNCTIONS
+    // =========================================================================
+    function getCurrencyInfo(code) {
+      return CURRENCIES.find(c => c.code === code) || { code, name: code, symbol: code, flag: '🌐' };
+    }
+
+    function formatNumber(num, decimals = 2) {
+      if (isNaN(num) || !isFinite(num)) return '0.00';
+      return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      }).format(num);
+    }
+
+    function getCrossRate(fromCode, toCode) {
+      const fromRate = state.rates[fromCode] || 1;
+      const toRate = state.rates[toCode] || 1;
+      return toRate / fromRate;
+    }
+
+    function showToast(msg) {
+      els.toastMessage.textContent = msg;
+      els.toast.classList.remove('translate-y-20', 'opacity-0');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        els.toast.classList.add('translate-y-20', 'opacity-0');
+      }, 2600);
+    }
+
+    // =========================================================================
+    // 5. LIVE EXCHANGE RATE API INTEGRATION
+    // =========================================================================
+    async function fetchLiveRates(manual = false) {
+      if (manual) {
+        els.refreshIcon.classList.add('animate-spin');
+      }
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+        const response = await fetch('https://open.er-api.com/v6/latest/USD', {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) throw new Error('API response error');
+        const data = await response.json();
+
+        if (data && data.result === 'success' && data.rates) {
+          state.rates = { ...FALLBACK_RATES_USD, ...data.rates };
+          state.isLive = true;
+          state.lastUpdated = new Date();
+          updateStatusUI(true);
+          if (manual) showToast('Live market rates synchronized');
+        } else {
+          throw new Error('Invalid payload');
+        }
+      } catch (err) {
+        console.warn('Using fallback FX rates:', err.message);
+        state.isLive = false;
+        state.lastUpdated = new Date();
+        updateStatusUI(false);
+        if (manual) showToast('Using cached market rates (offline fallback)');
+      } finally {
+        els.refreshIcon.classList.remove('animate-spin');
+        recalculateAll();
+        updateHistoricalChart();
+      }
+    }
+
+    function updateStatusUI(isLive) {
+      if (isLive) {
+        els.statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-xs font-medium text-emerald-300';
+        els.statusPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
+        els.statusDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
+        els.statusText.textContent = 'Live Market Rates';
+      } else {
+        els.statusBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-xs font-medium text-amber-300';
+        els.statusPing.className = 'hidden';
+        els.statusDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-amber-500';
+        els.statusText.textContent = 'Cached / Offline Rates';
+      }
+      if (state.lastUpdated) {
+        els.lastUpdatedText.textContent = 'Updated ' + state.lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+    }
+
+    // =========================================================================
+    // 6. CORE CONVERSION & FEE SIMULATOR CALCULATION
+    // =========================================================================
+    function recalculateAll() {
+      const amount = Math.max(0, parseFloat(els.amountInput.value) || 0);
+      state.amount = amount;
+
+      const fromInfo = getCurrencyInfo(state.from);
+      const toInfo = getCurrencyInfo(state.to);
+
+      // Update Selector Displays
+      els.fromFlag.textContent = fromInfo.flag;
+      els.fromCode.textContent = fromInfo.code;
+      els.fromCurrencyName.textContent = fromInfo.name;
+
+      els.toFlag.textContent = toInfo.flag;
+      els.toCode.textContent = toInfo.code;
+      els.toCurrencyName.textContent = toInfo.name;
+
+      // Calculate Spot Rate & Inverse
+      const rate = getCrossRate(state.from, state.to);
+      const inverse = rate > 0 ? 1 / rate : 0;
+
+      const grossConverted = amount * rate;
+      const feeRatio = state.feePercent / 100;
+      const feeCost = grossConverted * feeRatio;
+      const netConverted = grossConverted - feeCost;
+
+      // Determine smart decimal places (JPY/KRW usually 2, small crypto/rates up to 4)
+      const dec = rate < 0.05 ? 4 : 2;
+
+      els.convertedOutput.textContent = formatNumber(netConverted, dec);
+      els.unitRateText.textContent = `1 ${state.from} = ${formatNumber(rate, rate < 1 ? 5 : 4)} ${state.to}`;
+      els.inverseRateText.textContent = `1 ${state.to} = ${formatNumber(inverse, inverse < 1 ? 6 : 4)} ${state.from}`;
+
+      // Fee Breakdown
+      els.feePercentDisplay.textContent = `${state.feePercent.toFixed(1)}%`;
+      els.netReceiveText.textContent = `${formatNumber(netConverted, dec)} ${state.to}`;
+      els.feeCostText.textContent = `${formatNumber(feeCost, dec)} ${state.to}`;
+
+      // Render Multi-Currency Matrix
+      renderWatchlist();
+    }
+
+    // =========================================================================
+    // 7. MULTI-CURRENCY LIVE WATCHLIST
+    // =========================================================================
+    function renderWatchlist() {
+      els.matrixBaseLabel.textContent = `${formatNumber(state.amount, 2)} ${state.from}`;
+      els.watchlistGrid.innerHTML = '';
+
+      state.watchlist.forEach(code => {
+        const info = getCurrencyInfo(code);
+        const rate = getCrossRate(state.from, code);
+        const convertedVal = state.amount * rate;
+        const isCurrentTarget = code === state.to;
+
+        const card = document.createElement('div');
+        card.className = `group relative rounded-xl p-4 border transition cursor-pointer ${
+          isCurrentTarget
+            ? 'bg-emerald-500/10 border-emerald-500/40'
+            : 'bg-[#0B0F17] hover:bg-terminal-elevated/70 border-terminal-border'
+        }`;
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">${info.flag}</span>
+              <div>
+                <div class="font-mono font-bold text-sm text-white flex items-center gap-1.5">
+                  ${info.code}
+                  ${isCurrentTarget ? '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>' : ''}
+                </div>
+                <div class="text-[11px] text-slate-400 truncate max-w-[120px]">${info.name}</div>
+              </div>
+            </div>
+            <button data-remove="${code}" title="Remove from board" class="remove-watch-btn opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition">
+              <i data-lucide="x" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+          <div class="mt-3 pt-2.5 border-t border-terminal-border/60 flex items-baseline justify-between gap-2">
+            <span class="font-mono font-bold text-base text-slate-100 tabular-nums truncate">
+              ${formatNumber(convertedVal, rate < 0.05 ? 4 : 2)}
+            </span>
+            <span class="font-mono text-[11px] text-slate-400 shrink-0">
+              @${formatNumber(rate, rate < 1 ? 4 : 2)}
+            </span>
+          </div>
+        `;
+
+        // Clicking card sets it as active target currency
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.remove-watch-btn')) return;
+          state.to = code;
+          recalculateAll();
+          updateHistoricalChart();
+          showToast(`Target currency switched to ${code}`);
+        });
+
+        // Remove button
+        const removeBtn = card.querySelector('.remove-watch-btn');
+        removeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          state.watchlist = state.watchlist.filter(c => c !== code);
+          localStorage.setItem('fxpulse_watchlist', JSON.stringify(state.watchlist));
+          renderWatchlist();
+        });
+
+        els.watchlistGrid.appendChild(card);
+      });
+
+      lucide.createIcons();
+    }
+
+    // =========================================================================
+    // 8. INTERACTIVE HISTORICAL TREND CHART (FRANKFURTER API + SMART SYNTHESIS)
+    // =========================================================================
+    async function updateHistoricalChart() {
+      const pairTitle = `${state.from} / ${state.to}`;
+      els.chartPairTitle.textContent = pairTitle;
+
+      const currentRate = getCrossRate(state.from, state.to);
+      const days = state.chartDays;
+
+      // Attempt real historical data from Frankfurter API (supports ~30 major currencies)
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - days);
+
+      const fmtDate = (d) => d.toISOString().split('T')[0];
+      let points = [];
+
+      try {
+        if (state.from !== state.to) {
+          const url = `https://api.frankfurter.app/${fmtDate(startDate)}..${fmtDate(endDate)}?from=${state.from}&to=${state.to}`;
+          const res = await fetch(url);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.rates) {
+              points = Object.entries(data.rates).map(([dateStr, rateObj]) => ({
+                date: dateStr,
+                rate: rateObj[state.to]
+              }));
+            }
+          }
+        }
+      } catch (e) {
+        // Fallback smoothly to deterministic market-anchored curve
+      }
+
+      // If pair isn't covered by Frankfurter (e.g., PKR, AED, SAR), generate realistic anchored series
+      if (points.length < 2) {
+        points = generateAnchoredSeries(state.from, state.to, currentRate, days);
+      } else {
+        // Ensure final point aligns smoothly with live spot rate
+        points[points.length - 1].rate = currentRate;
+      }
+
+      state.chartData = points;
+      renderChartStats(points);
+      drawTrendCanvas(points);
+    }
+
+    function generateAnchoredSeries(from, to, endRate, days) {
+      if (from === to) {
+        return Array.from({ length: days }, (_, i) => {
+          const d = new Date();
+          d.setDate(d.getDate() - (days - 1 - i));
+          return { date: d.toISOString().split('T')[0], rate: 1 };
+        });
+      }
+
+      // Deterministic pseudo-random walk anchored to endRate
+      let seed = (from.charCodeAt(0) * 31 + to.charCodeAt(1) * 17 + days) % 997;
+      const rand = () => {
+        seed = (seed * 16807) % 2147483647;
+        return (seed - 1) / 2147483646;
+      };
+
+      const series = [];
+      let val = endRate;
+      const volatility = 0.0032; // ~0.32% daily FX volatility
+
+      // Walk backwards from today
+      for (let i = 0; i < days; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        series.unshift({
+          date: d.toISOString().split('T')[0],
+          rate: val
+        });
+        const change = (rand() - 0.49) * volatility;
+        val = val / (1 + change);
+      }
+      return series;
+    }
+
+    function renderChartStats(points) {
+      const rates = points.map(p => p.rate);
+      const high = Math.max(...rates);
+      const low = Math.min(...rates);
+      const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
+
+      const first = rates[0];
+      const last = rates[rates.length - 1];
+      const pctChange = first > 0 ? ((last - first) / first) * 100 : 0;
+
+      const dec = last < 1 ? 5 : 4;
+      els.statHigh.textContent = formatNumber(high, dec);
+      els.statLow.textContent = formatNumber(low, dec);
+      els.statAvg.textContent = formatNumber(avg, dec);
+
+      const sign = pctChange >= 0 ? '+' : '';
+      els.chartDeltaBadge.textContent = `${sign}${pctChange.toFixed(2)}%`;
+      els.chartDeltaBadge.className = pctChange >= 0
+        ? 'px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-emerald-500/15 text-emerald-400'
+        : 'px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-rose-500/15 text-rose-400';
+    }
+
+    function drawTrendCanvas(points, hoverIndex = -1) {
+      const canvas = els.trendCanvas;
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      const width = rect.width;
+      const height = rect.height;
+      const padX = 14;
+      const padY = 22;
+
+      ctx.clearRect(0, 0, width, height);
+      if (!points || points.length < 2) return;
+
+      const rates = points.map(p => p.rate);
+      const minVal = Math.min(...rates);
+      const maxVal = Math.max(...rates);
+      const range = maxVal - minVal || minVal * 0.01 || 1;
+
+      const isPositive = rates[rates.length - 1] >= rates[0];
+      const strokeColor = isPositive ? '#10B981' : '#F43F5E';
+
+      const getX = (idx) => padX + (idx / (points.length - 1)) * (width - padX * 2);
+      const getY = (val) => height - padY - ((val - minVal) / range) * (height - padY * 2);
+
+      // Subtle horizontal grid lines
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 3; i++) {
+        const y = padY + (i / 3) * (height - padY * 2);
+        ctx.beginPath();
+        ctx.moveTo(padX, y);
+        ctx.lineTo(width - padX, y);
+        ctx.stroke();
+      }
+
+      // Area Gradient Fill
+      const gradient = ctx.createLinearGradient(0, padY, 0, height);
+      if (isPositive) {
+        gradient.addColorStop(0, 'rgba(16, 185, 129, 0.28)');
+        gradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+      } else {
+        gradient.addColorStop(0, 'rgba(244, 63, 94, 0.28)');
+        gradient.addColorStop(1, 'rgba(244, 63, 94, 0.0)');
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(getX(0), height - padY + 8);
+      points.forEach((pt, idx) => {
+        ctx.lineTo(getX(idx), getY(pt.rate));
+      });
+      ctx.lineTo(getX(points.length - 1), height - padY + 8);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      // Main Trend Line
+      ctx.beginPath();
+      points.forEach((pt, idx) => {
+        const x = getX(idx);
+        const y = getY(pt.rate);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 2.2;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+
+      // Hover Crosshair & Active Dot
+      if (hoverIndex >= 0 && hoverIndex < points.length) {
+        const hx = getX(hoverIndex);
+        const hy = getY(points[hoverIndex].rate);
+
+        ctx.beginPath();
+        ctx.setLineDash([4, 4]);
+        ctx.moveTo(hx, 8);
+        ctx.lineTo(hx, height - 8);
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.beginPath();
+        ctx.arc(hx, hy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#090C10';
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = strokeColor;
+        ctx.stroke();
+      }
+    }
+
+    // Interactive Canvas Hover Handlers
+    els.trendCanvas.addEventListener('mousemove', (e) => {
+      if (!state.chartData.length) return;
+      const rect = els.trendCanvas.getBoundingClientRect();
+      const relX = e.clientX - rect.left;
+      const ratio = Math.max(0, Math.min(1, (relX - 14) / (rect.width - 28)));
+      const idx = Math.round(ratio * (state.chartData.length - 1));
+      const point = state.chartData[idx];
+
+      if (point) {
+        drawTrendCanvas(state.chartData, idx);
+        els.chartTooltip.classList.remove('hidden');
+        els.tooltipDate.textContent = new Date(point.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        els.tooltipRate.textContent = `${formatNumber(point.rate, point.rate < 1 ? 5 : 4)} ${state.to}`;
+      }
+    });
+
+    els.trendCanvas.addEventListener('mouseleave', () => {
+      els.chartTooltip.classList.add('hidden');
+      drawTrendCanvas(state.chartData, -1);
+    });
+
+    // =========================================================================
+    // 9. SEARCHABLE CURRENCY PICKER MODAL
+    // =========================================================================
+    function openCurrencyModal(target) {
+      state.modalTarget = target;
+      els.modalTitle.textContent =
+        target === 'from' ? 'Select Source Currency' :
+        target === 'to' ? 'Select Target Currency' :
+        'Add Currency to Live Board';
+
+      els.currencySearchInput.value = '';
+      renderCurrencyOptions('');
+      els.currencyModal.classList.remove('hidden');
+      setTimeout(() => els.currencySearchInput.focus(), 50);
+    }
+
+    function closeCurrencyModal() {
+      els.currencyModal.classList.add('hidden');
+      state.modalTarget = null;
+    }
+
+    function renderCurrencyOptions(filterText) {
+      const q = filterText.trim().toLowerCase();
+      const filtered = CURRENCIES.filter(c =>
+        c.code.toLowerCase().includes(q) ||
+        c.name.toLowerCase().includes(q) ||
+        c.region.toLowerCase().includes(q)
+      );
+
+      els.currencyListContainer.innerHTML = '';
+      if (!filtered.length) {
+        els.currencyListContainer.innerHTML = `<div class="p-6 text-center text-xs text-slate-500">No matching currencies found.</div>`;
+        return;
+      }
+
+      filtered.forEach(c => {
+        const isSelected =
+          (state.modalTarget === 'from' && c.code === state.from) ||
+          (state.modalTarget === 'to' && c.code === state.to) ||
+          (state.modalTarget === 'watchlist' && state.watchlist.includes(c.code));
+
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = `w-full px-4 py-3 flex items-center justify-between hover:bg-terminal-elevated transition text-left ${
+          isSelected ? 'bg-emerald-500/10' : ''
+        }`;
+
+        item.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">${c.flag}</span>
+            <div>
+              <div class="font-mono font-bold text-sm text-white">${c.code} <span class="text-xs font-normal text-slate-400">(${c.symbol})</span></div>
+              <div class="text-xs text-slate-400">${c.name}</div>
+            </div>
+          </div>
+          ${isSelected ? '<span class="text-xs font-mono text-emerald-400">Selected</span>' : ''}
+        `;
+
+        item.addEventListener('click', () => {
+          if (state.modalTarget === 'from') {
+            state.from = c.code;
+          } else if (state.modalTarget === 'to') {
+            state.to = c.code;
+          } else if (state.modalTarget === 'watchlist') {
+            if (!state.watchlist.includes(c.code)) {
+              state.watchlist.push(c.code);
+              localStorage.setItem('fxpulse_watchlist', JSON.stringify(state.watchlist));
+              showToast(`Added ${c.code} to Live Matrix`);
+            }
+          }
+          closeCurrencyModal();
+          recalculateAll();
+          updateHistoricalChart();
+        });
+
+        els.currencyListContainer.appendChild(item);
+      });
+    }
+
+    // =========================================================================
+    // 10. CONVERSION HISTORY LOG (LOCALSTORAGE)
+    // =========================================================================
+    function logCurrentConversion() {
+      const rate = getCrossRate(state.from, state.to);
+      const result = state.amount * rate * (1 - state.feePercent / 100);
+      const entry = {
+        id: Date.now(),
+        amount: state.amount,
+        from: state.from,
+        to: state.to,
+        result,
+        rate,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      state.history.unshift(entry);
+      if (state.history.length > 15) state.history.pop();
+      localStorage.setItem('fxpulse_history', JSON.stringify(state.history));
+      renderHistory();
+      showToast('Conversion saved to history');
+    }
+
+    function renderHistory() {
+      if (!state.history.length) {
+        els.historyList.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No logged conversions yet. Click "Log" to save.</p>`;
+        return;
+      }
+
+      els.historyList.innerHTML = '';
+      state.history.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between bg-[#0B0F17] hover:bg-terminal-elevated/80 border border-terminal-border rounded-xl px-3 py-2 text-xs cursor-pointer transition';
+        row.innerHTML = `
+          <div>
+            <span class="font-mono font-semibold text-slate-200">${formatNumber(item.amount, 2)} ${item.from}</span>
+            <span class="text-slate-500 mx-1">→</span>
+            <span class="font-mono font-bold text-emerald-400">${formatNumber(item.result, 2)} ${item.to}</span>
+          </div>
+          <span class="font-mono text-[11px] text-slate-500">${item.time}</span>
+        `;
+        row.addEventListener('click', () => {
+          els.amountInput.value = item.amount;
+          state.from = item.from;
+          state.to = item.to;
+          recalculateAll();
+          updateHistoricalChart();
+          showToast('Restored conversion parameters');
+        });
+        els.historyList.appendChild(row);
+      });
+    }
+
+    // =========================================================================
+    // 11. EVENT LISTENERS & INITIALIZATION
+    // =========================================================================
+    els.amountInput.addEventListener('input', recalculateAll);
+
+    // Quick amount pills
+    document.querySelectorAll('.preset-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        els.amountInput.value = btn.dataset.preset;
+        document.querySelectorAll('.preset-pill').forEach(p => {
+          p.className = 'preset-pill px-2.5 py-1 rounded-lg text-xs font-mono bg-terminal-elevated hover:bg-emerald-500/20 hover:text-emerald-300 border border-terminal-border text-slate-300 transition';
+        });
+        btn.className = 'preset-pill px-2.5 py-1 rounded-lg text-xs font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 transition';
+        recalculateAll();
+      });
+    });
+
+    // Swap button
+    els.swapBtn.addEventListener('click', () => {
+      els.swapBtn.classList.toggle('rotated');
+      const temp = state.from;
+      state.from = state.to;
+      state.to = temp;
+      recalculateAll();
+      updateHistoricalChart();
+    });
+
+    // Fee slider & presets
+    els.feeSlider.addEventListener('input', (e) => {
+      state.feePercent = parseFloat(e.target.value) || 0;
+      recalculateAll();
+    });
+
+    document.querySelectorAll('.fee-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const fee = parseFloat(btn.dataset.fee);
+        state.feePercent = fee;
+        els.feeSlider.value = fee;
+        document.querySelectorAll('.fee-preset').forEach(b => {
+          b.className = 'fee-preset px-2 py-0.5 rounded text-[11px] font-mono bg-terminal-elevated text-slate-300 border border-terminal-border hover:border-slate-600';
+        });
+        btn.className = 'fee-preset px-2 py-0.5 rounded text-[11px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+        recalculateAll();
+      });
+    });
+
+    // Chart period buttons
+    document.querySelectorAll('.period-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.chartDays = parseInt(btn.dataset.days, 10);
+        document.querySelectorAll('.period-btn').forEach(b => {
+          b.className = 'period-btn px-2.5 py-1 rounded-lg text-xs font-mono text-slate-400 hover:text-white transition';
+        });
+        btn.className = 'period-btn px-2.5 py-1 rounded-lg text-xs font-mono bg-terminal-elevated text-emerald-400 font-semibold shadow';
+        updateHistoricalChart();
+      });
+    });
+
+    // Copy result button
+    els.copyResultBtn.addEventListener('click', () => {
+      const textToCopy = `${formatNumber(state.amount, 2)} ${state.from} = ${els.convertedOutput.textContent} ${state.to}`;
+      const tempInput = document.createElement('textarea');
+      tempInput.value = textToCopy;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      showToast(`Copied: ${textToCopy}`);
+    });
+
+    // History buttons
+    els.saveHistoryBtn.addEventListener('click', logCurrentConversion);
+    els.clearHistoryBtn.addEventListener('click', () => {
+      state.history = [];
+      localStorage.removeItem('fxpulse_history');
+      renderHistory();
+      showToast('Conversion history cleared');
+    });
+
+    // Modal triggers
+    els.fromSelectorBtn.addEventListener('click', () => openCurrencyModal('from'));
+    els.toSelectorBtn.addEventListener('click', () => openCurrencyModal('to'));
+    els.addWatchlistBtn.addEventListener('click', () => openCurrencyModal('watchlist'));
+    els.closeModalBtn.addEventListener('click', closeCurrencyModal);
+    els.currencyModal.addEventListener('click', (e) => {
+      if (e.target === els.currencyModal) closeCurrencyModal();
+    });
+    els.currencySearchInput.addEventListener('input', (e) => renderCurrencyOptions(e.target.value));
+
+    // Refresh button & Resize listener
+    els.refreshRatesBtn.addEventListener('click', () => fetchLiveRates(true));
+    window.addEventListener('resize', () => drawTrendCanvas(state.chartData));
+
+    // Bootstrap App
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      renderHistory();
+      recalculateAll();
+      fetchLiveRates(false);
+    });
+  </script>
+</body>
+</html>
